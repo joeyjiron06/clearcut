@@ -16,7 +16,10 @@
         "width": 600,
         "height": 700,
         "resizable": false,
-        "dragDropEnabled": false
+        "dragDropEnabled": false,
+        "titleBarStyle": "Transparent",
+        "hiddenTitle": true,
+        "backgroundColor": "#fafafa"
       }
     ],
     "security": {

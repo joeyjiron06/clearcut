@@ -1,8 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { useLocalStorage } from "usehooks-ts";
 import { open } from "@tauri-apps/plugin-dialog";
-import { writeFile } from "@tauri-apps/plugin-fs";
-import { basename, join } from "@tauri-apps/api/path";
 import {
   PhotoIcon,
   XMarkIcon,
@@ -11,8 +9,8 @@ import {
   CheckIcon,
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
-import { WebAI } from "@axols/webai-js";
 import logo from "./assets/penguin.svg";
+import textLogo from "./assets/penguin-text.svg";
 import * as Photo from "./services/photo";
 import "./App.css";
 
@@ -205,7 +203,9 @@ function App() {
       });
 
       try {
-        await processImage(file, outputFolder);
+        const mask = await Photo.generateMask(file.preview);
+        const bytes = await Photo.applyMask(file.preview, mask);
+        await Photo.save(outputFolder, file.name, bytes);
 
         // Check if cancelled after processing
         if (cancelledRef.current) {
@@ -261,16 +261,17 @@ function App() {
   return (
     <div className="h-screen max-h-screen flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="shrink-0 px-5 pt-4 flex items-center gap-1">
-        <img src={logo} alt="Penguin" className="size-8" />
-        <h1 className="font-semibold text-gray-900">Penguin</h1>
+      <div className="shrink-0 px-5 pt-0 flex items-center gap-1">
+        <img src={logo} alt="Penguin" className="size-8 -ml-2" />
+        <img src={textLogo} alt="Penguin" className="h-4" />
+        {/* <h1 className="font-semibold text-gray-900">Penguin</h1> */}
       </div>
 
       {/* Main Content Panel */}
       <div className="flex-1 flex flex-col p-5 gap-6 shrink-0">
         {/* Drag and Drop Area */}
         <div
-          className={`border border-dashed rounded-lg transition-colors shrink-0 grow flex flex-col  relative ${
+          className={`squircle border border-dashed rounded-lg transition-colors shrink-0 grow flex flex-col  relative ${
             isDragging && !isProcessing && !isComplete()
               ? "border-brand bg-linear-to-b from-background-2 to-background"
               : "border-stroke-2"
@@ -435,7 +436,7 @@ function App() {
           <button
             onClick={handleFolderSelect}
             disabled={isProcessing || isComplete()}
-            className={`w-full border border-stroke rounded-md text-sm font-medium text-left flex items-stretch transition-all duration-150 focus-visible:outline-stroke-accessible focus-visible:outline-2 focus-visible:outline-offset-2 ${
+            className={`squircle w-full border border-stroke rounded-md text-sm font-medium text-left flex items-stretch transition-all duration-150 focus-visible:outline-stroke-accessible focus-visible:outline-2 focus-visible:outline-offset-2  ${
               isProcessing || isComplete()
                 ? "opacity-50 cursor-not-allowed"
                 : "hover:bg-background-2 cursor-pointer"
@@ -499,61 +500,3 @@ function App() {
 }
 
 export default App;
-
-let webai: Promise<WebAI> | undefined;
-function getWebAI() {
-  if (!webai) {
-    webai = (async () => {
-      const webai = await WebAI.create({
-        // modelId: "rmbg-ben2",
-        modelId: "rmbg-ormbg",
-      });
-
-      await webai.init({
-        mode: "auto",
-        onDownloadProgress: (progress) => {
-          console.log(`Downloading model... ${progress.progress}%`);
-        },
-      });
-
-      return webai;
-    })();
-  }
-  return webai!;
-}
-
-async function generateMask(imageBlobUrl: string) {
-  const webai = await getWebAI();
-
-  const generation = await webai.generate({
-    userInput: {
-      image_blob_url: imageBlobUrl,
-    },
-    modelConfig: {},
-    generateConfig: {},
-  });
-
-  const mask = generation.result_mask as string;
-
-  return mask;
-}
-
-async function createFileName(file: FileItem) {
-  // Create filename with -clipped suffix before extension
-  const fileName = file.name;
-  const nameWithoutExt = await basename(fileName);
-  const newFileName = `${nameWithoutExt}-clipped.png`;
-
-  return newFileName;
-}
-
-async function processImage(file: FileItem, outputFolder: string) {
-  const mask = await generateMask(file.preview);
-  const bytes = await Photo.applyMask(file.preview, mask);
-  const newFileName = await createFileName(file);
-
-  // Construct full file path
-  const filePath = await join(outputFolder!, newFileName);
-
-  await writeFile(filePath, bytes);
-}

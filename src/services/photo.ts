@@ -1,3 +1,7 @@
+import { basename, join } from "@tauri-apps/api/path";
+import { writeFile } from "@tauri-apps/plugin-fs";
+import { WebAI } from "@axols/webai-js";
+
 export async function applyMask(
   photoBlobUrl: string,
   maskBlobUrl: string
@@ -62,4 +66,60 @@ function loadImage(url: string): Promise<HTMLImageElement> {
     img.onerror = reject;
     img.src = url;
   });
+}
+
+export async function save(
+  outputFolder: string,
+  originalFilename: string,
+  bytes: Uint8Array
+) {
+  const newFileName = await createFileName(originalFilename);
+  const filePath = await join(outputFolder!, newFileName);
+  await writeFile(filePath, bytes);
+}
+
+async function createFileName(fileName: string) {
+  // Create filename with -clipped suffix before extension
+  const nameWithoutExt = await basename(fileName);
+  const newFileName = `${nameWithoutExt}-clipped.png`;
+
+  return newFileName;
+}
+
+let webai: Promise<WebAI> | undefined;
+function getWebAI() {
+  if (!webai) {
+    webai = (async () => {
+      const webai = await WebAI.create({
+        // modelId: "rmbg-ben2",
+        modelId: "rmbg-ormbg",
+      });
+
+      await webai.init({
+        mode: "auto",
+        onDownloadProgress: (progress) => {
+          console.log(`Downloading model... ${progress.progress}%`);
+        },
+      });
+
+      return webai;
+    })();
+  }
+  return webai!;
+}
+
+export async function generateMask(imageBlobUrl: string) {
+  const webai = await getWebAI();
+
+  const generation = await webai.generate({
+    userInput: {
+      image_blob_url: imageBlobUrl,
+    },
+    modelConfig: {},
+    generateConfig: {},
+  });
+
+  const mask = generation.result_mask as string;
+
+  return mask;
 }
