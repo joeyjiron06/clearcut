@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useReducer, useRef, useCallback, useEffect } from "react";
 import { useLocalStorage } from "usehooks-ts";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
@@ -12,31 +12,60 @@ import {
 import logo from "./assets/penguin.svg";
 import textLogo from "./assets/penguin-text.svg";
 import * as Photo from "./services/photo";
+import {
+  appReducer,
+  initialState,
+  filesSelected,
+  removeFileButtonClicked,
+  clearFilesButtonClicked,
+  outputFolderSelected,
+  dragEntered,
+  dragLeft,
+  removeBackgroundButtonClicked,
+  fileStatusChanged,
+  processingProgressChanged,
+  processingCompleted,
+  cancelButtonClicked,
+  resetButtonClicked,
+  cancelComplete,
+} from "./App.reducer";
 import "./App.css";
 
-interface FileItem {
-  id: string;
-  name: string;
-  path: string;
-  size: number;
-  preview: string;
-}
-
 function App() {
-  const [files, setFiles] = useState<FileItem[]>([]);
-  const [outputFolder, setOutputFolder] = useLocalStorage<string | null>(
-    "output-folder",
-    null
-  );
-  const [isDragging, setIsDragging] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [processedFiles, setProcessedFiles] = useState<
-    Map<string, "pending" | "processing" | "completed" | "error">
-  >(new Map());
-  const [currentProcessingIndex, setCurrentProcessingIndex] =
-    useState<number>(0);
+  const [storedOutputFolder, setStoredOutputFolder] = useLocalStorage<
+    string | null
+  >("output-folder", null);
+
+  // Initialize reducer with localStorage value
+  const [state, dispatch] = useReducer(appReducer, {
+    ...initialState,
+    outputFolder: storedOutputFolder || undefined,
+  });
+
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cancelledRef = useRef<boolean>(false);
+
+  const { files, outputFolder, isDragging, processingRequest } = state;
+
+  // Extract processing-related values
+  const isProcessing = processingRequest?.status === "processing";
+  const processedFiles = processingRequest?.processedFiles ?? new Map();
+  const currentProcessingIndex = processingRequest?.currentProcessingIndex ?? 0;
+  const isCancelling = processingRequest?.isCancelling ?? false;
+
+  // Track latest isCancelling state for async function access
+  const isCancellingRef = useRef(isCancelling);
+
+  // Sync outputFolder from reducer state to localStorage (one-way sync)
+  useEffect(() => {
+    if (state.outputFolder !== (storedOutputFolder || undefined)) {
+      setStoredOutputFolder(state.outputFolder || null);
+    }
+  }, [state.outputFolder, storedOutputFolder, setStoredOutputFolder]);
+
+  // Sync isCancelling to ref for async access
+  useEffect(() => {
+    isCancellingRef.current = isCancelling;
+  }, [isCancelling]);
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return "0 Bytes";
@@ -50,32 +79,13 @@ function App() {
     fileInputRef.current?.click();
   };
 
-  const handleFileInputChange = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files;
-    if (selectedFiles && selectedFiles.length > 0) {
-      const imageFiles = Array.from(selectedFiles).filter(
-        (file) =>
-          file.type.startsWith("image/") ||
-          /\.(svg|png|jpg|jpeg)$/i.test(file.name)
-      );
 
-      const newFiles: FileItem[] = await Promise.all(
-        imageFiles.map(async (file) => {
-          const preview = URL.createObjectURL(file);
-          return {
-            id: crypto.randomUUID(),
-            name: file.name,
-            path: (file as any).path || file.name,
-            size: file.size,
-            preview,
-          };
-        })
-      );
-
-      setFiles((prev) => [...prev, ...newFiles]);
+    if (selectedFiles) {
+      dispatch(filesSelected(Array.from(selectedFiles)));
     }
+
     // Reset the input so the same file can be selected again
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -90,7 +100,7 @@ function App() {
       });
 
       if (selected) {
-        setOutputFolder(selected);
+        dispatch(outputFolderSelected(selected));
       }
     } catch (error) {
       console.error("Error selecting folder:", error);
@@ -100,153 +110,111 @@ function App() {
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(true);
+    dispatch(dragEntered());
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(true);
+    dispatch(dragEntered());
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(false);
+    dispatch(dragLeft());
   };
 
-  const handleDrop = async (e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(false);
+    dispatch(dragLeft());
 
-    const droppedFiles = Array.from(e.dataTransfer.files);
-    const imageFiles = droppedFiles.filter(
-      (file) =>
-        file.type.startsWith("image/") ||
-        /\.(svg|png|jpg|jpeg)$/i.test(file.name)
-    );
-
-    const newFiles: FileItem[] = await Promise.all(
-      imageFiles.map(async (file) => {
-        const preview = URL.createObjectURL(file);
-        return {
-          id: crypto.randomUUID(),
-          name: file.name,
-          path: (file as any).path || file.name,
-          size: file.size,
-          preview,
-        };
-      })
-    );
-
-    setFiles((prev) => [...prev, ...newFiles]);
+    const files = Array.from(e.dataTransfer.files);
+    dispatch(filesSelected(files));
   };
 
   const removeFile = (index: number) => {
-    const fileToRemove = files[index];
-    if (fileToRemove.preview) {
-      URL.revokeObjectURL(fileToRemove.preview);
-    }
-    setFiles((prev) => prev.filter((_, i) => i !== index));
+    dispatch(removeFileButtonClicked(index));
   };
 
   const clearFiles = () => {
-    files.forEach((file) => {
-      if (file.preview) {
-        URL.revokeObjectURL(file.preview);
-      }
-    });
     const fileInput = fileInputRef.current;
     if (fileInput) {
       fileInput.value = "";
     }
-    setFiles([]);
+    dispatch(clearFilesButtonClicked());
   };
 
   const handleStart = useCallback(async () => {
-    if (!outputFolder) {
-      console.error("Output folder not selected");
-      return;
-    }
-
-    // Reset cancellation flag
-    cancelledRef.current = false;
-
-    // Initialize all files as pending
-    const initialStatus = new Map<
-      string,
-      "pending" | "processing" | "completed" | "error"
-    >();
-    files.forEach((file) => {
-      initialStatus.set(file.id, "pending");
-    });
-    setProcessedFiles(initialStatus);
-    setCurrentProcessingIndex(0);
-    setIsProcessing(true);
+    // Initialize processing state
+    dispatch(removeBackgroundButtonClicked());
 
     // Process files one by one
     for (let i = 0; i < files.length; i++) {
       // Check if cancelled before processing each file
-      if (cancelledRef.current) {
+      if (isCancellingRef.current) {
+        dispatch(cancelComplete());
         break;
       }
 
       const file = files[i];
-      setCurrentProcessingIndex(i);
+      dispatch(processingProgressChanged(i));
 
       // Update status to processing
-      setProcessedFiles((prev) => {
-        const next = new Map(prev);
-        next.set(file.id, "processing");
-        return next;
-      });
+      dispatch(fileStatusChanged(file.id, "processing"));
 
       try {
         const mask = await Photo.generateMask(file.preview);
-        const bytes = await Photo.applyMask(file.preview, mask);
-        await Photo.save(outputFolder, file.name, bytes);
 
-        // Check if cancelled after processing
-        if (cancelledRef.current) {
+        // Check if cancelled after generateMask
+        if (isCancellingRef.current) {
+          dispatch(cancelComplete());
+          break;
+        }
+
+        const bytes = await Photo.applyMask(file.preview, mask);
+
+        // Check if cancelled after applyMask
+        if (isCancellingRef.current) {
+          dispatch(cancelComplete());
+          break;
+        }
+
+        await Photo.save(outputFolder!, file.name, bytes);
+
+        // Check if cancelled after save
+        if (isCancellingRef.current) {
+          dispatch(cancelComplete());
           break;
         }
 
         // Update status to completed
-        setProcessedFiles((prev) => {
-          const next = new Map(prev);
-          next.set(file.id, "completed");
-          return next;
-        });
+        dispatch(fileStatusChanged(file.id, "completed"));
       } catch (error) {
         console.error(`Error processing ${file.name}:`, error);
 
         // Update status to error
-        setProcessedFiles((prev) => {
-          const next = new Map(prev);
-          next.set(file.id, "error");
-          return next;
-        });
+        dispatch(fileStatusChanged(file.id, "error"));
       }
     }
 
-    setIsProcessing(false);
-  }, [files, outputFolder]);
+    // Check if all files are completed
+    if (!isCancellingRef.current) {
+      dispatch(processingCompleted());
+    } else {
+      dispatch(cancelComplete());
+    }
+  }, [files, outputFolder, dispatch]);
 
   const handleReset = () => {
-    cancelledRef.current = false;
-    setIsProcessing(false);
-    setProcessedFiles(new Map());
-    setCurrentProcessingIndex(0);
     clearFiles();
+    dispatch(resetButtonClicked());
   };
 
   const getProgress = (): number => {
     if (isComplete()) return 100;
-
-    // When processing, show progress based on current item being processed
-    // Processing item 1 of 3 = 33%, item 2 of 3 = 67%, item 3 of 3 = 100%
-    return Math.round((currentProcessingIndex / files.length) * 100);
+    return processingRequest?.progress ?? 0;
   };
 
   const isComplete = (): boolean => {
@@ -471,14 +439,10 @@ function App() {
         ) : isProcessing ? (
           <button
             className="btn btn-outline"
-            onClick={() => {
-              cancelledRef.current = true;
-              setIsProcessing(false);
-              // clear all processed files
-              setProcessedFiles(new Map());
-            }}
+            onClick={() => dispatch(cancelButtonClicked())}
+            disabled={isCancelling}
           >
-            Cancel
+            {isCancelling ? "Cancelling..." : "Cancel"}
           </button>
         ) : (
           <button
