@@ -9,8 +9,8 @@ import {
   CheckIcon,
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
-import logo from "./assets/penguin.svg";
-import textLogo from "./assets/penguin-text.svg";
+import Logo from "./assets/penguin.svg?react";
+import LogoText from "./assets/penguin-text.svg?react";
 import * as Photo from "./services/photo";
 import {
   appReducer,
@@ -229,14 +229,13 @@ function App() {
   return (
     <div className="h-screen max-h-screen flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="shrink-0 px-5 pt-0 flex items-center gap-1">
-        <img src={logo} alt="Penguin" className="size-8 -ml-2" />
-        <img src={textLogo} alt="Penguin" className="h-4" />
-        {/* <h1 className="font-semibold text-gray-900">Penguin</h1> */}
+      <div className="shrink-0 px-5 py-2 flex items-center gap-1">
+        <Logo aria-label="Penguin Logo" className="size-8 -ml-2" />
+        <LogoText aria-label="Penguin Text Logo" className="h-4" />
       </div>
 
       {/* Main Content Panel */}
-      <div className="flex-1 flex flex-col p-5 gap-6 shrink-0">
+      <div className="flex-1 flex flex-col px-5 pb-5 gap-6 shrink-0">
         {/* Drag and Drop Area */}
         <div
           className={`squircle border border-dashed rounded-lg transition-colors shrink-0 grow flex flex-col  relative ${
@@ -291,13 +290,13 @@ function App() {
                 /* PROCESSING HEADER */
                 <div className="shrink-0 h-6">
                   <div className="flex items-center justify-between gap-2">
-                    <h2 className="font-semibold text-gray-900">
+                    <h2 className="font-semibold">
                       Processed Images (
                       {isComplete() ? files.length : currentProcessingIndex} of{" "}
                       {files.length})
                     </h2>
 
-                    <div className="grow bg-gray-200 rounded-full h-2">
+                    <div className="grow bg-background-2 rounded-full h-2">
                       <div
                         className="bg-brand h-2 rounded-full transition-all duration-300"
                         style={{ width: `${getProgress()}%` }}
@@ -348,15 +347,15 @@ function App() {
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">
-                              <PhotoIcon className="size-6 text-gray-400" />
+                              <PhotoIcon className="size-6" />
                             </div>
                           )}
                         </div>
                         <div className="ml-3 flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
+                          <p className="text-sm font-medium  truncate">
                             {file.name}
                           </p>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-foreground-muted">
                             {formatFileSize(file.size)}
                           </p>
                         </div>
@@ -410,20 +409,20 @@ function App() {
                 : "hover:bg-background-2 cursor-pointer"
             }`}
           >
-            <span className="text-sm font-medium text-gray-700 px-4 py-2 flex items-center gap-2">
+            <span className="text-sm font-medium px-4 py-2 flex items-center gap-2">
               <FolderIcon className="size-4" />
               Output folder
             </span>
 
-            <div className="h-auto w-px bg-gray-300 shrink-0"></div>
+            <div className="h-auto w-px bg-stroke shrink-0"></div>
 
-            <div className="px-4 py-2">
+            <div className="px-4 py-2 text-foreground-muted">
               {outputFolder ? (
-                <span className="text-gray-900 truncate block">
+                <span className="truncate block">
                   {outputFolder.split(/[/\\]/).pop() || outputFolder}
                 </span>
               ) : (
-                <span className="text-gray-500">Choose folder</span>
+                <span>Choose folder</span>
               )}
             </div>
           </button>

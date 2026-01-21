@@ -64,20 +64,44 @@
 
   /* TIER 2 */
 
-  --color-background: var(--color-surface-50);
-  --color-background-2: var(--color-surface-100);
-  --color-background-3: var(--color-surface-200);
+  --color-background: light-dark(
+    var(--color-surface-50),
+    var(--color-surface-900)
+  );
+  --color-background-2: light-dark(
+    var(--color-surface-100),
+    var(--color-surface-800)
+  );
+  --color-background-3: light-dark(
+    var(--color-surface-200),
+    var(--color-surface-700)
+  );
 
-  --color-foreground: var(--color-neutral-950);
-  --color-foreground-muted: var(--color-neutral-500);
+  --color-foreground: light-dark(
+    var(--color-neutral-950),
+    var(--color-neutral-200)
+  );
+  --color-foreground-muted: light-dark(
+    var(--color-neutral-500),
+    var(--color-neutral-400)
+  );
 
-  --color-brand: var(--color-brand-950);
-  --color-brand-fg: var(--color-brand-50);
-  --color-brand-2: var(--color-brand-800);
-  --color-brand-2-fg: var(--color-brand-100);
+  --color-brand: light-dark(var(--color-brand-950), var(--color-brand-50));
+  --color-brand-fg: light-dark(var(--color-brand-50), var(--color-brand-950));
+  --color-brand-2: light-dark(var(--color-brand-800), var(--color-brand-200));
+  --color-brand-2-fg: light-dark(
+    var(--color-brand-100),
+    var(--color-brand-800)
+  );
 
-  --color-stroke: var(--color-surface-300); /* default border color */
-  --color-stroke-2: var(--color-surface-400); /* default border color */
+  --color-stroke: light-dark(
+    var(--color-surface-300),
+    var(--color-surface-800)
+  ); /* default border color */
+  --color-stroke-2: light-dark(
+    var(--color-surface-400),
+    var(--color-surface-700)
+  ); /* default border color */
   --color-stroke-accessible: var(--color-brand);
 
   /* ------------------- Fields ------------------- */
@@ -130,6 +154,12 @@
 
     color: var(--color-foreground);
     background-color: var(--color-background);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+    }
   }
 }
 

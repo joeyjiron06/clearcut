@@ -1,4 +1,4 @@
-import { basename, join } from "@tauri-apps/api/path";
+import { basename, extname, join } from "@tauri-apps/api/path";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import { WebAI } from "@axols/webai-js";
 
@@ -80,7 +80,10 @@ export async function save(
 
 async function createFileName(fileName: string) {
   // Create filename with -clipped suffix before extension
-  const nameWithoutExt = await basename(fileName);
+  const baseFilename = await basename(fileName);
+  const extension = await extname(fileName);
+  const nameWithoutExt = baseFilename.replace(extension, "");
+
   const newFileName = `${nameWithoutExt}-clipped.png`;
 
   return newFileName;
